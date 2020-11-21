@@ -102,8 +102,8 @@ contract AuthorizationPlatform {
         console.log("RoleBasedAccessControl::grantRole checking that %s is approved to have role.", account );
         require( _isApproveForRole( role, account ), "RoleBasedAccessControl::grantRole Address is not approved for role." );
         
-        console.log("RoleBasedAccessControl::grantRole checking that %s is admin to set role.", Context._msgSender());
-        require(hasRole(_roles[role].adminRole, Context._msgSender()), "RoleBasedAccessControl: sender must be an admin to grant");
+        console.log("RoleBasedAccessControl::grantRole checking that %s is admin to set role.", Context.Context._msgSender());
+        require(hasRole(_roles[role].adminRole, Context.Context._msgSender()), "RoleBasedAccessControl: sender must be an admin to grant");
         
         console.log("RoleBasedAccessControl::grantRole checking that %s does not have any restricted shared roles for role.", account);
         require( !hasRestrictedSharedRole( role, account ), "RoleBasedAccessControl::grantRole account has restrictedSharedRoles with role." );
@@ -114,12 +114,12 @@ contract AuthorizationPlatform {
     }
 
     function approveForRole( bytes32 role, address approvedAccount ) public virtual {
-        require( hasRole( _roles[role].approverRole, Context._msgSender() ), "RoleBasedAccessControl::approveForRole caller is not role approver." );
+        require( hasRole( _roles[role].approverRole, Context.Context._msgSender() ), "RoleBasedAccessControl::approveForRole caller is not role approver." );
         _approveForRole( role, approvedAccount );
     }
 
     function revokeApproval( bytes32 role, address disapprovedAccount ) public virtual {
-        require( hasRole( _roles[role].approverRole, Context._msgSender() ), "RoleBasedAccessControl::approveForRole caller is not role approver." );
+        require( hasRole( _roles[role].approverRole, Context.Context._msgSender() ), "RoleBasedAccessControl::approveForRole caller is not role approver." );
         _revokeRoleApproval( role, disapprovedAccount );
     }
 
@@ -133,7 +133,7 @@ contract AuthorizationPlatform {
      * - the caller must have ``role``'s admin role.
      */
     function revokeRole(bytes32 role, address account) public virtual {
-        require(hasRole(_roles[role].adminRole, Context._msgSender()), "AccessControl: sender must be an admin to revoke");
+        require(hasRole(_roles[role].adminRole, Context.Context._msgSender()), "AccessControl: sender must be an admin to revoke");
 
         _revokeRole(role, account);
     }
@@ -153,7 +153,7 @@ contract AuthorizationPlatform {
      * - the caller must be `account`.
      */
     function renounceRole(bytes32 role, address account) public virtual {
-        require(account == Context._msgSender(), "AccessControl: can only renounce roles for self");
+        require(account == Context.Context._msgSender(), "AccessControl: can only renounce roles for self");
 
         _revokeRole(role, account);
     }
@@ -201,23 +201,23 @@ contract AuthorizationPlatform {
     function _grantRole(bytes32 role, address account) private {
         console.log("RoleBasedAccessControl: Granting %s role.", account);
         if (_roles[role].members.add(account)) {
-            emit RoleGranted(role, account, Context._msgSender());
+            emit RoleGranted(role, account, Context.Context._msgSender());
         }
     }
 
     function _revokeRole(bytes32 role, address account) internal {
         if (_roles[role].members.remove(account)) {
-            emit RoleRevoked(role, account, Context._msgSender());
+            emit RoleRevoked(role, account, Context.Context._msgSender());
         }
     }
 
     function _approveForRole(bytes32 role, address approvedAccount) internal {
-        emit RoleApproved( role, Context._msgSender(), approvedAccount );
+        emit RoleApproved( role, Context.Context._msgSender(), approvedAccount );
         _roles[role].roleApproval[approvedAccount] = true;
     }
 
     function _revokeRoleApproval( bytes32 role, address revokedAccount ) internal {
-        emit ApprovalRevoked( role, Context._msgSender(), revokedAccount );
+        emit ApprovalRevoked( role, Context.Context._msgSender(), revokedAccount );
         _roles[role].roleApproval[revokedAccount] = false;
     }
 
