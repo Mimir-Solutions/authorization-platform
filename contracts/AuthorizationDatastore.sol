@@ -2,7 +2,12 @@
 pragma solidity 0.7.4;
 
 import "hardhat/console.sol";
+
+// TODO: now that projects are split what do we do about imports?
 import "../dependencies/libraires/security/structs/RoleData.sol";
+
+// TODO: how does approval work? You approve and then they are automatically added to the members or there is another step that someone else must perform?
+//       ... since the approval can be revoked. If the former then who double checks it and how are they informed of this?
 
  /**
   * Conract to store the role authorization data for the rest of the platform.
@@ -18,6 +23,7 @@ contract AuthorizationDatastore {
     IEventBroadcaster private _eventBroadcaster;
 
     modifier onlyPlatform() {
+        // TODO: Context is now in a different project
         require( Context._msgSender() == authorizationPlatform );
         _;
     }
@@ -29,8 +35,8 @@ contract AuthorizationDatastore {
         // Probably wrong initialization
         _eventBroadcaster = IEventBroadcaster(broadcaster_);
 
-        console.log( "Instantiating AuthorizationDatastore." );
-        console.log( "Instantiated AuthorizationDatastore." );
+        // console.log( "Instantiating AuthorizationDatastore." );
+        // console.log( "Instantiated AuthorizationDatastore." );
     }
 
     // TODO: Better name to indicate that I'm getting an address type of the broadcaster    - Why do I even need this?
@@ -51,18 +57,37 @@ contract AuthorizationDatastore {
         _contractRoles[contract_].roles[rootRole_].approved[newRootAddress_] = true;
     }
 
-    function setupRole( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_, bytes32 approverRole_ ) external onlyPlatform() {
+    function createRole( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_, bytes32 approverRole_ ) external onlyPlatform() {
         require( _contractExists( contract_ ), "Contract not in data store" );
         require( _isRoot( contract_, submitter_ ) , "Submitter has insufficient permissions" );
 
         _createRole( contract_, submitter_, role_, adminRole_, approverRole_, );
     }
 
-    function addRestrictedSharedRoles( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) external onlyPlatform() {
+    function setAdminRole( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_ ) external onlyPlatform() {
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        require( _isRoot( contract_, submitter_ ) , "Submitter has insufficient permissions" );
+
+        _setAdminRole( contract_, submitter_, role_, adminRole_ );
+    }
+
+    function setApproverRole( address contract_, address submitter_, bytes32 role_, bytes32 approverRole_ ) external onlyPlatform() {
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        require( _isRoot( contract_, submitter_ ) , "Submitter has insufficient permissions" );
+
+        _setApproverRole( contract_, submitter_, role_, approverRole_ );
+    }
+
+    function addRestrictedSharedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) external onlyPlatform() {
         require( _isRoot( contract_, submitter_ ) , "Submitter has insufficient permissions" );
 
         // TODO: What if you add a new role into this set and someone else has it? How do you check and undo their perms or just do not add it untill that is sorted?
-        _addRestrictedSharedRoles( contract_, submitter_, role_, restrictedSharedRole_ );
+        _addRestrictedSharedRole( contract_, submitter_, role_, restrictedSharedRole_ );
+    }
+
+    function removeRestrictedSharedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) external onlyPlatform() {
+        require( _isRoot( contract_, submitter_ ) , "Submitter has insufficient permissions" );
+        _removeRestrictedSharedRole( contract_, submitter_, role_, restrictedSharedRole_ );
     }
 
     /**
@@ -82,11 +107,16 @@ contract AuthorizationDatastore {
      * @dev Returns the admin role that controls `role`. See {grantRole} and
      * {revokeRole}.
      *
-     * To change a role's admin, use {_setRoleAdmin}.
+     * To change a role's admin, use {_setAdminRole}.
      */
-    function getRoleAdmin( address contract_, bytes32 role_ ) external view returns ( bytes32 ) {
+    function getAdminRole( address contract_, bytes32 role_ ) external view returns ( bytes32 ) {
         require( _contractExists(contract_), "Contract not in data store" );
         return _contractRoles[contract_].roles[role_].admin;
+    }
+
+    function getApproverRole( address contract_, bytes32 role_ ) external view returns ( bytes32 ) {
+        require( _contractExists(contract_), "Contract not in data store" );
+        return _contractRoles[contract_].roles[role_].approver;
     }
 
     /**
@@ -129,31 +159,19 @@ contract AuthorizationDatastore {
      *
      * - the caller must have ``role``'s admin role.
      */
-    function grantRole( address contract_, bytes32 role_, address account_ ) external onlyPlatform() {
+    function grantRole( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
         require( _contractExists(contract_), "Contract not in data store" );
-        require( _isAdmin( contract_, role_, Context.Context._msgSender() ),            "RoleBasedAccessControl::sender must be an admin to grant" );
+        require( _isAdmin( contract_, role_, sender_ ),                         "RoleBasedAccessControl::sender must be an admin to grant" );
         require( !_hasRestrictedSharedRole( contract_, role_, account_ ),       "RoleBasedAccessControl::grantRole account has restrictedSharedRoles with role." );
         require( _isApprovedForRole( contract_, role_, account_ ),              "RoleBasedAccessControl::grantRole Address is not approved for role." );
         
         _grantRole( contract_, role_, account_ );
 
         // console.log( "RoleBasedAccessControl::grantRole checking that %s is approved to have role.", account_ );
-        // console.log( "RoleBasedAccessControl::grantRole checking that %s is admin to set role.", Context.Context._msgSender() );
+        // console.log( "RoleBasedAccessControl::grantRole checking that %s is admin to set role.", sender_ );
         // console.log( "RoleBasedAccessControl::grantRole checking that %s does not have any restricted shared roles for role.", account_ );
         // console.log( "RoleBasedAccessControl::grantRole Granting %s role.", account_ );
         // console.log( "RoleBasedAccessControl::grantRole Granted %s role.", account_ );
-    }
-
-    function approveForRole( address contract_, bytes32 role_, address account_ ) external onlyPlatform() {
-        require( _contractExists( contract_ ), "Contract not in data store" );
-        require( _isApprover( contract_, role_, Context.Context._msgSender() ), "RoleBasedAccessControl::approveForRole caller is not role approver." );
-        _approveForRole( contract_, role_, account_ );
-    }
-
-    function revokeApproval( address contract_, bytes32 role_, address account_ ) external onlyPlatform() {
-        require( _contractExists( contract_ ), "Contract not in data store" );
-        require( _isApprover( contract_, role_, Context.Context._msgSender() ), "RoleBasedAccessControl::revokeApproval caller is not role approver." );
-        _revokeRoleApproval( contract_, role_, account_ );
     }
 
     /**
@@ -165,10 +183,22 @@ contract AuthorizationDatastore {
      *
      * - the caller must have ``role``'s admin role.
      */
-    function removeRole( address contract_, bytes32 role_, address account_ ) external onlyPlatform() {
+    function removeRole( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
         require( _contractExists(contract_), "Contract not in data store" );
-        require( _isAdmin( contract_, role_, Context.Context._msgSender() ),, "AccessControl: sender must be an admin to remove" );
+        require( _isAdmin( contract_, role_, sender_ ),, "AccessControl: sender must be an admin to remove" );
         _removeRole( contract_, role_, account_ );
+    }
+
+    function approveForRole( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        require( _isApprover( contract_, role_, sender_ ), "RoleBasedAccessControl::approveForRole caller is not role approver." );
+        _approveForRole( contract_, role_, account_ );
+    }
+
+    function revokeApproval( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        require( _isApprover( contract_, role_, sender_ ), "RoleBasedAccessControl::revokeApproval caller is not role approver." );
+        _revokeRoleApproval( contract_, role_, account_ );
     }
 
     /**
@@ -185,11 +215,9 @@ contract AuthorizationDatastore {
      *
      * - the caller must be `account`.
      */
-    function renounceRole( address contract_, bytes32 role, address account_ ) external onlyPlatform() {
+    function renounceRole( address contract_, bytes32 role_ ) external {
         require( _contractExists(contract_), "Contract not in data store" );
-        // TODO: Only the owner of the role should be able to revoke it, that depends on design in Platform
-        require( account == Context.Context._msgSender(), "AccessControl: can only renounce roles for self" );
-        _removeRole( contract_, role_, account_ );
+        _removeRole( contract_, role_, Context._msgSender() );
     }
 
     function hasAnyOfRoles( address contract_, address account_, bytes32[] roles_ ) external view returns ( bool ) {
@@ -198,6 +226,7 @@ contract AuthorizationDatastore {
     }
 
     function _createRole( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_, bytes32 approverRole_ ) private {
+        // TODO: check how to create this with syntax highligher
         Role newRole_ = Role({
             admin:                  adminRole_,
             approver:               approverRole_,
@@ -216,7 +245,7 @@ contract AuthorizationDatastore {
      *
      * Emits a {RoleAdminChanged} event.
      */
-    function _setRoleAdmin( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_ ) private {
+    function _setAdminRole( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_ ) private {
         RoleData.Role storage roleData_ = _contractRoles[contract_].roles[role_];
         
         bytes32 previousAdminRole_ = roleData_.admin;
@@ -234,9 +263,15 @@ contract AuthorizationDatastore {
         _eventBroadcaster.roleApproverChanged( contract_, submitter_, role_, previousApproverRole_, roleData_.approver );
     }
 
-    function _addRestrictedSharedRoles( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) private {        
+    function _addRestrictedSharedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) private {        
         _contractRoles[contract_].roles[role_].restrictedSharedRoles.add( restrictedSharedRole_ );
         _eventBroadcaster.restrictedSharedRoleAdded( contract_, submitter_, role_, restrictedSharedRole_ );
+    }
+
+    function _removeRestrictedSharedRoles( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) private {        
+        _contractRoles[contract_].roles[role_].restrictedSharedRoles.remove( restrictedSharedRole_ );
+        // TODO: Add method to broadcaster
+        _eventBroadcaster.restrictedSharedRoleRemoved( contract_, submitter_, role_, restrictedSharedRole_ );
     }
 
     function _grantRole( address contract_, bytes32 role_, address account_ ) private {
@@ -245,7 +280,7 @@ contract AuthorizationDatastore {
         RoleData.Role storage roleData_ = _contractRoles[contract_].roles[role_];
 
         if (roleData_.members.add( account_ )) {
-            _eventBroadcaster.roleGranted( contract_, role_, account_, Context.Context._msgSender() );
+            _eventBroadcaster.roleGranted( contract_, role_, account_, Context._msgSender() );
         }
     }
 
@@ -255,7 +290,7 @@ contract AuthorizationDatastore {
 
     function _removeRole( address contract_, bytes32 role_, address account_ ) private {
         if ( _contractRoles[contract_].roles[role_].members.remove( account_ ) ) {
-            _eventBroadcaster.roleRemoved( contract_, role_, account_, Context.Context._msgSender() );
+            _eventBroadcaster.roleRemoved( contract_, role_, account_, Context._msgSender() );
         }
     }
 
@@ -263,18 +298,18 @@ contract AuthorizationDatastore {
 
         // What is the difference between RoleApproved and RoleGranted? Someone said you have it VS you have been given it
         emit RoleApproved( role_, Context.Context._msgSender(), approvedAccount_ );
-        contractRoles[contract_].roles[role_].roleApproval[approvedAccount_] = true;
+        contractRoles[contract_].roles[role_].approved[approvedAccount_] = true;
     }
 
     function _revokeRoleApproval( address contract_, bytes32 role_, address revokedAccount_ ) private {
         require( _contractExists( contract_ ), "Contract not in data store" );
 
         emit ApprovalRevoked( role_, Context.Context._msgSender(), revokedAccount_ );
-        _contractRoles[contract_].roles[role_].roleApproval[revokedAccount_] = false;
+        _contractRoles[contract_].roles[role_].approved[revokedAccount_] = false;
     }
 
     function _isApprovedForRole( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
-        return _contractRoles[contract_].roles[role_].roleApproval[account_];
+        return _contractRoles[contract_].roles[role_].approved[account_];
     }
 
     function _hasAnyOfRoles( address contract_, address account_, bytes32[] roles_ ) private view returns ( bool ) {
