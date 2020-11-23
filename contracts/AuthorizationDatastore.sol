@@ -20,8 +20,6 @@ contract AuthorizationDatastore {
 
     address private _authorizationPlatform;
 
-    IEventBroadcaster private _eventBroadcaster;
-
     modifier onlyPlatform() {
         // TODO: Context is now in a different project
         require( Context._msgSender() == authorizationPlatform );
@@ -30,19 +28,12 @@ contract AuthorizationDatastore {
 
     mapping( address => RoleData.ContractRoles ) private _contractRoles;
 
-    constructor( address platform_, address broadcaster_ ) public {
-        _authorizationPlatform = platform_;
-        // Probably wrong initialization
-        _eventBroadcaster = IEventBroadcaster(broadcaster_);
+    constructor( address authorizationPlatform_ ) public {
+        console.log( "Instantiating AuthorizationDatastore." );
 
-        // console.log( "Instantiating AuthorizationDatastore." );
-        // console.log( "Instantiated AuthorizationDatastore." );
-    }
+        _authorizationPlatform = authorizationPlatform_;
 
-    // TODO: Better name to indicate that I'm getting an address type of the broadcaster    - Why do I even need this?
-    function eventBroadcaster() external view returns ( address ) {
-        // return _eventBroadcaster.address;    // Must Test
-        return address( _eventBroadcaster );
+        console.log( "Instantiated AuthorizationDatastore." );
     }
 
     function registerContract( address contract_, bytes32 rootRole_, address newRootAddress_ ) external onlyPlatform() {        
@@ -236,8 +227,6 @@ contract AuthorizationDatastore {
         });
 
         _contractRoles[contract_].roles[role_] = newRole_;
-
-        _eventBroadcaster.createdRole( contract_, submitter_, role_ );
     }
 
     /**
@@ -250,8 +239,6 @@ contract AuthorizationDatastore {
         
         bytes32 previousAdminRole_ = roleData_.admin;
         roleData_.admin = adminRole_;
-
-        _eventBroadcaster.roleAdminChanged( contract_, submitter_, role_, previousAdminRole_, roleData_.admin );
     }
 
     function _setApproverRole( address contract_, address submitter_, bytes32 role_, bytes32 approverRole_ ) private {
@@ -259,13 +246,10 @@ contract AuthorizationDatastore {
         
         bytes32 previousApproverRole_ = roleData_.approver;
         roleData_.approver = approverRole_;
-
-        _eventBroadcaster.roleApproverChanged( contract_, submitter_, role_, previousApproverRole_, roleData_.approver );
     }
 
     function _addRestrictedSharedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) private {        
         _contractRoles[contract_].roles[role_].restrictedSharedRoles.add( restrictedSharedRole_ );
-        _eventBroadcaster.restrictedSharedRoleAdded( contract_, submitter_, role_, restrictedSharedRole_ );
     }
 
     function _removeRestrictedSharedRoles( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) private {        
@@ -279,9 +263,7 @@ contract AuthorizationDatastore {
         
         RoleData.Role storage roleData_ = _contractRoles[contract_].roles[role_];
 
-        if (roleData_.members.add( account_ )) {
-            _eventBroadcaster.roleGranted( contract_, role_, account_, Context._msgSender() );
-        }
+        roleData_.members.add( account_ );
     }
 
     function _hasRole( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
@@ -289,9 +271,7 @@ contract AuthorizationDatastore {
     }
 
     function _removeRole( address contract_, bytes32 role_, address account_ ) private {
-        if ( _contractRoles[contract_].roles[role_].members.remove( account_ ) ) {
-            _eventBroadcaster.roleRemoved( contract_, role_, account_, Context._msgSender() );
-        }
+        _contractRoles[contract_].roles[role_].members.remove( account_ );
     }
 
     function _approveForRole( address contract_, bytes32 role_, address approvedAccount_ ) private {
@@ -348,5 +328,4 @@ contract AuthorizationDatastore {
 
         return false;
     }
-
 }
