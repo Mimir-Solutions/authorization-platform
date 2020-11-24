@@ -9,6 +9,8 @@ import "../dependencies/libraires/security/structs/RoleData.sol";
 // TODO: how does approval work? You approve and then they are automatically added to the members or there is another step that someone else must perform?
 //       ... since the approval can be revoked. If the former then who double checks it and how are they informed of this?
 
+// TODO: Remove some private methods that are not being reused and are unlikely to be reused in other code
+
  /**
   * Conract to store the role authorization data for the rest of the platform.
   * Should be expecting calls from the AuthorizationPlatform and return bools or bytes32 for evaluation results.
@@ -46,6 +48,8 @@ contract AuthorizationDatastore {
         _contractRoles[contract_].roles[rootRole_].admin = rootRole_;
         _contractRoles[contract_].roles[rootRole_].members.add(newRootAddress_);
         _contractRoles[contract_].roles[rootRole_].approved[newRootAddress_] = true;
+
+        _eventBroadcaster.newContractRegistered( contract_, rootRole_, newRootAddress_ );
     }
 
     function createRole( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_, bytes32 approverRole_ ) external onlyPlatform() {
@@ -70,6 +74,7 @@ contract AuthorizationDatastore {
     }
 
     function addRestrictedSharedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) external onlyPlatform() {
+        require( _contractExists( contract_ ), "Contract not in data store" );
         require( _isRoot( contract_, submitter_ ) , "Submitter has insufficient permissions" );
 
         // TODO: What if you add a new role into this set and someone else has it? How do you check and undo their perms or just do not add it untill that is sorted?
@@ -77,7 +82,9 @@ contract AuthorizationDatastore {
     }
 
     function removeRestrictedSharedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) external onlyPlatform() {
+        require( _contractExists( contract_ ), "Contract not in data store" );
         require( _isRoot( contract_, submitter_ ) , "Submitter has insufficient permissions" );
+
         _removeRestrictedSharedRole( contract_, submitter_, role_, restrictedSharedRole_ );
     }
 
@@ -89,9 +96,19 @@ contract AuthorizationDatastore {
         return _hasRole( contract_, role_, account_ );
     }
 
-    function hasRestrictedSharedRole( address contract_, bytes32 role_, address challenger_ ) external view returns ( bool ) {
-        require( _contractExists(contract_), "Contract not in data store" );
-        return _hasRestrictedSharedRole( contract_, role_, challenger_ );
+    function hasRestrictedSharedRole( address contract_, bytes32 role_, address account_ ) external view returns ( bool ) {
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        return _hasRestrictedSharedRole( contract_, role_, account_ );
+    }
+
+    function isApprovedForRole( address contract_, bytes32 role_, address account_ ) external view returns ( bool ) {
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        return _isApprovedForRole( contract_, role_, account_ );
+    }
+
+    function isRoleRestricted( address contract_, bytes32 role_, bytes32 restrictedRole_ ) external view returns ( bool ) {
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        return _isRoleRestricted( contract_, role_, restrictedRole_ );
     }
 
     /**
@@ -101,12 +118,12 @@ contract AuthorizationDatastore {
      * To change a role's admin, use {_setAdminRole}.
      */
     function getAdminRole( address contract_, bytes32 role_ ) external view returns ( bytes32 ) {
-        require( _contractExists(contract_), "Contract not in data store" );
+        require( _contractExists( contract_ ), "Contract not in data store" );
         return _contractRoles[contract_].roles[role_].admin;
     }
 
     function getApproverRole( address contract_, bytes32 role_ ) external view returns ( bytes32 ) {
-        require( _contractExists(contract_), "Contract not in data store" );
+        require( _contractExists( contract_ ), "Contract not in data store" );
         return _contractRoles[contract_].roles[role_].approver;
     }
 
@@ -134,10 +151,6 @@ contract AuthorizationDatastore {
     function getRoleMember( address contract_, bytes32 role_, uint256 index_ ) external view returns ( address ) {
         require( _contractExists( contract_ ), "Contract not in data store" );
         return _contractRoles[contract_].roles[role_].members.at( index );
-    }
-
-    function isApprovedForRole( address contract_, bytes32 role_, address account_ ) external view returns ( bool ) {
-        return _isApprovedForRole( contract_, role_, account_ );
     }
 
     /**
@@ -175,9 +188,10 @@ contract AuthorizationDatastore {
      * - the caller must have ``role``'s admin role.
      */
     function removeRole( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
-        require( _contractExists(contract_), "Contract not in data store" );
-        require( _isAdmin( contract_, role_, sender_ ),, "AccessControl: sender must be an admin to remove" );
-        _removeRole( contract_, role_, account_ );
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        require( _isAdmin( contract_, role_, sender_ ), "AccessControl: sender must be an admin to remove" );
+        require( _hasRole( contract_, role_, account_ ), "Account does not contain the role" );
+        _removeRole( contract_, role_, account_, sender_ );
     }
 
     function approveForRole( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
@@ -207,8 +221,11 @@ contract AuthorizationDatastore {
      * - the caller must be `account`.
      */
     function renounceRole( address contract_, bytes32 role_ ) external {
-        require( _contractExists(contract_), "Contract not in data store" );
-        _removeRole( contract_, role_, Context._msgSender() );
+        require( _contractExists( contract_ ), "Contract not in data store" );
+        address account_ = Context._msgSender();
+        require( _hasRole( contract_, role_, account_ ), "Account does not contain the role" );
+
+        _removeRole( contract_, role_, account_, account_ );
     }
 
     function hasAnyOfRoles( address contract_, address account_, bytes32[] roles_ ) external view returns ( bool ) {
@@ -227,6 +244,8 @@ contract AuthorizationDatastore {
         });
 
         _contractRoles[contract_].roles[role_] = newRole_;
+
+        _eventBroadcaster.createdRole( contract_, submitter_, role_ );
     }
 
     /**
@@ -239,6 +258,8 @@ contract AuthorizationDatastore {
         
         bytes32 previousAdminRole_ = roleData_.admin;
         roleData_.admin = adminRole_;
+
+        _eventBroadcaster.roleAdminChanged( contract_, submitter_, role_, previousAdminRole_, roleData_.admin );
     }
 
     function _setApproverRole( address contract_, address submitter_, bytes32 role_, bytes32 approverRole_ ) private {
@@ -246,10 +267,15 @@ contract AuthorizationDatastore {
         
         bytes32 previousApproverRole_ = roleData_.approver;
         roleData_.approver = approverRole_;
+
+        // TODO: Change in broadcaster to "approverRoleChanged"
+        _eventBroadcaster.roleApproverChanged( contract_, submitter_, role_, previousApproverRole_, roleData_.approver );
     }
 
     function _addRestrictedSharedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) private {        
         _contractRoles[contract_].roles[role_].restrictedSharedRoles.add( restrictedSharedRole_ );
+        // TODO: Change to "AddedRestrictedSharedRole" or something
+        _eventBroadcaster.restrictedSharedRoleAdded( contract_, submitter_, role_, restrictedSharedRole_ );
     }
 
     function _removeRestrictedSharedRoles( address contract_, address submitter_, bytes32 role_, bytes32 restrictedSharedRole_ ) private {        
@@ -258,20 +284,23 @@ contract AuthorizationDatastore {
         _eventBroadcaster.restrictedSharedRoleRemoved( contract_, submitter_, role_, restrictedSharedRole_ );
     }
 
-    function _grantRole( address contract_, bytes32 role_, address account_ ) private {
+    function _grantRole( address contract_, bytes32 role_, address account_, address sender_ ) private {
         // console.log("RoleBasedAccessControl: Granting %s role.", account);
         
         RoleData.Role storage roleData_ = _contractRoles[contract_].roles[role_];
 
         roleData_.members.add( account_ );
+
+        _eventBroadcaster.roleGranted( contract_, role_, account_, sender_ );
     }
 
     function _hasRole( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
         return _contractRoles[contract_].roles[role_].members.contains( account_ );
     }
 
-    function _removeRole( address contract_, bytes32 role_, address account_ ) private {
+    function _removeRole( address contract_, bytes32 role_, address account_, address sender_ ) private {
         _contractRoles[contract_].roles[role_].members.remove( account_ );
+        _eventBroadcaster.roleRemoved( contract_, role_, account_, sender_ );
     }
 
     function _approveForRole( address contract_, bytes32 role_, address approvedAccount_ ) private {
@@ -317,11 +346,23 @@ contract AuthorizationDatastore {
         return _hasRole( contract_, _contractRoles[contract_].roles[role_].admin, account_ );
     }
 
-    function _hasRestrictedSharedRole( address contract_, bytes32 role_, address challenger_ ) private view returns ( bool ) {
-        RoleData.Role storage role_ = _contractRoles[contract_].roles[role_];
+    function _isRoleRestricted( address contract_, bytes32 role_, bytes32 restrictedRole_ ) private view returns ( bool ) {
+        RoleData.Role storage roleData_ = _contractRoles[contract_].roles[role_];
 
-        for( uint256 iteration = 0; iteration < role_.restrictedSharedRoles.length(); iteration++ ) {
-            if ( _contractRoles[contract_].roles[role_.restrictedSharedRoles.at( iteration )].members.contains( challenger_ ) ) {
+        for( uint256 iteration = 0; iteration < roleData_.restrictedSharedRoles.length(); iteration++ ) {
+            if ( roleData_.restrictedSharedRoles.at( iteration ) == restrictedRole_ ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function _hasRestrictedSharedRole( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
+        RoleData.Role storage roleData_ = _contractRoles[contract_].roles[role_];
+
+        for( uint256 iteration = 0; iteration < roleData_.restrictedSharedRoles.length(); iteration++ ) {
+            if ( _contractRoles[contract_].roles[roleData_.restrictedSharedRoles.at( iteration )].members.contains( account_ ) ) {
                 return true;
             }
         }
