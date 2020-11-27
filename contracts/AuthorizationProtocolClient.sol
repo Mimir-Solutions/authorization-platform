@@ -10,4 +10,8 @@ abstract contract AuthorizationProtocolClient {
     function _registerContract() internal {}
 
     function _registerRoles() internal {}
+
+    function _hasRole() internal {}
+
+    function _hasAnyOfRoles() {}
 }
