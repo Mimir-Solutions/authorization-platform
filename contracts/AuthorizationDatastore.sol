@@ -11,10 +11,6 @@ import "../dependencies/libraires/security/structs/RoleData.sol";
 
 // TODO: Replace msg.sender with a context wrapper
 
-// TODO: Granting and Approval of roles is semantically ambiguous, need clearer / more distinct names
-
-// TODO: Can only have 3 indexes, what do we care to be able to search for?
-
  /**
   * Conract to store the role authorization data for the rest of the platform.
   * Should be expecting calls from the AuthorizationPlatform and return bools or bytes32 for evaluation results.
@@ -36,110 +32,107 @@ contract AuthorizationDatastore {
     mapping( address => RoleData.ContractRoles ) private _contractRoles;
 
     event ContractRegistered( address indexed _contract, bytes32 indexed rootRole, address indexed rootAccount );
-    event CreatedRole( address indexed _contract, address indexed creator, bytes32 role );
-    event SetAdminRole( address indexed _contract, address submitter, bytes32 indexed role, bytes32 previousAdminRole, bytes32 indexed newAdminRole );
-    event SetApproverRole( address indexed _contract, address submitter, bytes32 indexed role, bytes32 approverRole, bytes32 indexed newApproverRole );
-    event RestrictedRoleAdded( address indexed _contract, address submitter, bytes32 indexed role, bytes32 indexed restrictedSharedRole );
-    event RestrictedRoleRemoved( address indexed _contract, address submitter, bytes32 indexed role, bytes32 indexed restrictedSharedRole );
-    event RoleGranted( address indexed _contract, bytes32 indexed role, address account, address indexed sender );
-    event RoleRemoved( address indexed _contract, bytes32 indexed role, address indexed account, address sender );
-    event RoleRevoked( address indexed _contract, bytes32 indexed role, address indexed account, address sender );
-    event RoleApproved( address indexed _contract, bytes32 indexed role, address approvee, address indexed approver );
-    event RoleApprovalRevoked( address indexed _contract, bytes32 indexed role, address approvee, address indexed approver );
-    event RoleRenounced( address indexed _contract, bytes32 indexed role, address indexed account );
+    event CreatedRole( address indexed contract_, address indexed creator, bytes32 role );
+    event SetAdminRole( address indexed contract_, address submitter, bytes32 indexed role, bytes32 indexed adminRole );
+    event SetApproverRole( address indexed contract_, address submitter, bytes32 indexed role, bytes32 indexed approverRole );
+    event RestrictedRoleAdded( address indexed contract_, address submitter, bytes32 indexed role, bytes32 indexed restrictedRole );
+    event RestrictedRoleRemoved( address indexed contract_, address submitter, bytes32 indexed role, bytes32 indexed restrictedRole );
+    event RoleAssigned( address indexed contract_, bytes32 indexed role, address account, address indexed sender );
+    event RoleRenounced( address indexed contract_, bytes32 indexed role, address indexed account );
+    event RoleRemoved( address indexed contract_, bytes32 indexed role, address indexed account, address sender );
+    event RoleApproved( address indexed contract_, bytes32 indexed role, address account, address indexed sender );
+    event RoleApprovalRevoked( address indexed contract_, bytes32 indexed role, address account, address indexed sender );
 
-    constructor( address authorizationPlatform_ ) public {
-        _authorizationPlatform = authorizationPlatform_;
+    constructor( address authorizationPlatform ) public {
+        _authorizationPlatform = authorizationPlatform;
     }
 
-    function registerContract( address contract_, bytes32 rootRole_, address newRootAddress_ ) external onlyPlatform() {        
+    function registerContract( address contract_, bytes32 rootRole, address rootAccount ) external onlyPlatform() {        
         uint256 size;
         assembly { size:= extcodesize( contract_ ) }
         require( size > 0,                              "Contract argument is not a valid contract address" );
         require( !_contractExists( contract_ ),         "Contract already in data store" );
-        require( _roleIsValid( contract_, rootRole_ ),  "Role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, rootRole ),  "Role cannot be the origin value of OxO" );
 
-        _contractRoles[contract_].root = rootRole_;
-        _contractRoles[contract_].roles[rootRole_].registerRole( rootRole_, newRootAddress_ );
+        _contractRoles[contract_].root = rootRole;
+        _contractRoles[contract_].roles[rootRole].registerRole( rootRole, rootAccount );
 
-        emit ContractRegistered( contract_, rootRole_, newRootAddress_ );
+        emit ContractRegistered( contract_, rootRole, rootAccount );
     }
 
-    function createRole( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_, bytes32 approverRole_ ) external onlyPlatform() {
-        require( _isRoot( contract_, submitter_ ) ,         "Submitter has insufficient permissions" );
+    function createRole( address contract_, address submitter, bytes32 role, bytes32 adminRole, bytes32 approverRole ) external onlyPlatform() {
+        require( _isRoot( contract_, submitter ) ,         "Submitter has insufficient permissions" );
         require( _contractExists( contract_ ),              "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),          "Role cannot be the origin value of OxO" );
-        require( _roleIsValid( contract_, adminRole_ ),     "Admin role cannot be the origin value of OxO" );
-        require( _roleIsValid( contract_, approverRole_ ),  "Approver role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, role ),          "Role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, adminRole ),     "Admin role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, approverRole ),  "Approver role cannot be the origin value of OxO" );
 
-        _contractRoles[contract_].roles[role_].createRole( adminRole_, approverRole_ );
-        emit CreatedRole( contract_, submitter_, role_ );
+        _contractRoles[contract_].roles[role].createRole( adminRole, approverRole );
+        emit CreatedRole( contract_, submitter, role );
     }
 
-    function setAdminRole( address contract_, address submitter_, bytes32 role_, bytes32 adminRole_ ) external onlyPlatform() {
-        require( _isRoot( contract_, submitter_ ) ,     "Submitter has insufficient permissions" );
+    function setAdminRole( address contract_, address submitter, bytes32 role, bytes32 adminRole ) external onlyPlatform() {
+        require( _isRoot( contract_, submitter ) ,     "Submitter has insufficient permissions" );
         require( _contractExists( contract_ ),          "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),      "Role cannot be the origin value of OxO" );
-        require( _roleIsValid( contract_, adminRole_ ), "Admin role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, role ),      "Role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, adminRole ), "Admin role cannot be the origin value of OxO" );
 
-        bytes32 previousAdminRole_ = _contractRoles[contract_].roles[role_].admin;
-        _contractRoles[contract_].roles[role_].admin = adminRole_;
+        _contractRoles[contract_].roles[role].admin = adminRole;
 
-        emit SetAdminRole( contract_, submitter_, role_, previousAdminRole_, _contractRoles[contract_].roles[role_].admin );
+        emit SetAdminRole( contract_, submitter, role, _contractRoles[contract_].roles[role].admin );
     }
 
-    function setApproverRole( address contract_, address submitter_, bytes32 role_, bytes32 approverRole_ ) external onlyPlatform() {
-        require( _isRoot( contract_, submitter_ ) ,         "Submitter has insufficient permissions" );
+    function setApproverRole( address contract_, address submitter, bytes32 role, bytes32 approverRole ) external onlyPlatform() {
+        require( _isRoot( contract_, submitter ) ,         "Submitter has insufficient permissions" );
         require( _contractExists( contract_ ),              "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),          "Role cannot be the origin value of OxO" );
-        require( _roleIsValid( contract_, approverRole_ ),  "Approver role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, role ),          "Role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, approverRole ),  "Approver role cannot be the origin value of OxO" );
 
-        bytes32 previousApproverRole_ = _contractRoles[contract_].roles[role_].approver;
-        _contractRoles[contract_].roles[role_].approver = approverRole_;
+        _contractRoles[contract_].roles[role].approver = approverRole;
 
-        emit SetApproverRole( contract_, submitter_, role_, previousApproverRole_, _contractRoles[contract_].roles[role_].approver );
+        emit SetApproverRole( contract_, submitter, role, _contractRoles[contract_].roles[role].approver );
     }
 
-    function addRestrictedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedRole_ ) external onlyPlatform() {
-        require( _isRoot( contract_, submitter_ ) ,          "Submitter has insufficient permissions" );
+    function addRestrictedRole( address contract_, address submitter, bytes32 role, bytes32 restrictedRole ) external onlyPlatform() {
+        require( _isRoot( contract_, submitter ) ,          "Submitter has insufficient permissions" );
         require( _contractExists( contract_ ),               "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),           "Role cannot be the origin value of OxO" );
-        require( _roleIsValid( contract_, restrictedRole_ ), "Restricted role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, role ),           "Role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, restrictedRole ), "Restricted role cannot be the origin value of OxO" );
 
         // TODO: What if you add a new role into this set and someone else has it? How do you check and undo their perms or just do not add it untill that is sorted?
-        _contractRoles[contract_].roles[role_].addRestrictedRole( restrictedRole_ );
-        emit RestrictedRoleAdded( contract_, submitter_, role_, restrictedRole_ );
+        _contractRoles[contract_].roles[role].addRestrictedRole( restrictedRole );
+        emit RestrictedRoleAdded( contract_, submitter, role, restrictedRole );
     }
 
-    function removeRestrictedRole( address contract_, address submitter_, bytes32 role_, bytes32 restrictedRole_ ) external onlyPlatform() {
-        require( _isRoot( contract_, submitter_ ) ,          "Submitter has insufficient permissions" );
+    function removeRestrictedRole( address contract_, address submitter, bytes32 role, bytes32 restrictedRole ) external onlyPlatform() {
+        require( _isRoot( contract_, submitter ) ,          "Submitter has insufficient permissions" );
         require( _contractExists( contract_ ),               "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),           "Role cannot be the origin value of OxO" );
-        require( _roleIsValid( contract_, restrictedRole_ ), "Restricted role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, role ),           "Role cannot be the origin value of OxO" );
+        require( _roleIsValid( contract_, restrictedRole ), "Restricted role cannot be the origin value of OxO" );
 
-        _contractRoles[contract_].roles[role_].removeRestrictedRole( restrictedRole_ );
-        emit RestrictedRoleRemoved( contract_, submitter_, role_, restrictedRole_ );
+        _contractRoles[contract_].roles[role].removeRestrictedRole( restrictedRole );
+        emit RestrictedRoleRemoved( contract_, submitter, role, restrictedRole );
     }
 
     /**
      * @dev Grants `role` to `account`.
      *
-     * If `account` had not been already granted `role`, emits a {RoleGranted}
+     * If `account` had not been already granted `role`, emits a {RoleAssigned}
      * event.
      *
      * Requirements:
      *
      * - the caller must have ``role``'s admin role.
      */
-    function grantRole( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
+    function assignRole( address contract_, bytes32 role, address account, address sender ) external onlyPlatform() {
         require( _contractExists( contract_ ),                              "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),                          "Role cannot be the origin value of OxO" );
-        require( _isAdmin( contract_, role_, sender_ ),                     "Submitter has insufficient permissions" );
-        require( !_hasRestrictedSharedRole( contract_, role_, account_ ),   "RoleBasedAccessControl::grantRole account has restrictedRoles with role." ); // TODO: Error Message
-        require( _isApprovedForRole( contract_, role_, account_ ),          "Account is not approved for role." );
+        require( _roleIsValid( contract_, role ),                          "Role cannot be the origin value of OxO" );
+        require( _isAdmin( contract_, role, sender ),                     "Submitter has insufficient permissions" );
+        require( !_hasRestrictedSharedRole( contract_, role, account ),   "RoleBasedAccessControl::assignRole account has restrictedRoles with role." ); // TODO: Error Message
+        require( _isApprovedForRole( contract_, role, account ),          "Account is not approved for role." );
                 
-        _contractRoles[contract_].roles[role_].grantRole( account_ );
-        emit RoleGranted( contract_, role_, account_, sender_ );
+        _contractRoles[contract_].roles[role].assignRole( account );
+        emit RoleAssigned( contract_, role, account, sender );
     }
 
     /**
@@ -151,38 +144,38 @@ contract AuthorizationDatastore {
      *
      * - the caller must have ``role``'s admin role.
      */
-    function removeRole( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
+    function removeRole( address contract_, bytes32 role, address account, address sender ) external onlyPlatform() {
         require( _contractExists( contract_ ),           "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),       "Role cannot be the origin value of OxO" );
-        require( _isAdmin( contract_, role_, sender_ ),  "AccessControl: sender must be an admin to remove" );
-        require( _hasRole( contract_, role_, account_ ), "Account does not contain the role" );
+        require( _roleIsValid( contract_, role ),       "Role cannot be the origin value of OxO" );
+        require( _isAdmin( contract_, role, sender ),  "AccessControl: sender must be an admin to remove" );
+        require( _hasRole( contract_, role, account ), "Account does not contain the role" );
 
-        _contractRoles[contract_].roles[role_].removeRole( account_ );
-        emit RoleRemoved( contract_, role_, account_, sender_ );
+        _contractRoles[contract_].roles[role].removeRole( account );
+        emit RoleRemoved( contract_, role, account, sender );
     }
 
-    function approveForRole( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
+    function approveForRole( address contract_, bytes32 role, address account, address sender ) external onlyPlatform() {
         require( _contractExists( contract_ ),              "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),          "Role cannot be the origin value of OxO" );
-        require( _isApprover( contract_, role_, sender_ ),  "Sender does not contain the approver role" );
+        require( _roleIsValid( contract_, role ),          "Role cannot be the origin value of OxO" );
+        require( _isApprover( contract_, role, sender ),  "Sender does not contain the approver role" );
 
-        _contractRoles[contract_].roles[role_].approved[account_] = true;
-        emit RoleApproved( contract_, role_, account_, sender_ );
+        _contractRoles[contract_].roles[role].approved[account] = true;
+        emit RoleApproved( contract_, role, account, sender );
     }
 
-    function revokeApproval( address contract_, bytes32 role_, address account_, address sender_ ) external onlyPlatform() {
+    function revokeApproval( address contract_, bytes32 role, address account, address sender ) external onlyPlatform() {
         require( _contractExists( contract_ ),              "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),          "Role cannot be the origin value of OxO" );
-        require( _isApprover( contract_, role_, sender_ ),  "Sender does not contain the approver role" );
+        require( _roleIsValid( contract_, role ),          "Role cannot be the origin value of OxO" );
+        require( _isApprover( contract_, role, sender ),  "Sender does not contain the approver role" );
 
-        _contractRoles[contract_].roles[role_].approved[account_] = false;
-        emit RoleApprovalRevoked( contract_, role_, account_, sender_ );
+        _contractRoles[contract_].roles[role].approved[account] = false;
+        emit RoleApprovalRevoked( contract_, role, account, sender );
     }
 
     /**
      * @dev Revokes `role` from the calling account.
      *
-     * Roles are often managed via {grantRole} and {revokeRole}: this function's
+     * Roles are often managed via {assignRole} and {revokeRole}: this function's
      * purpose is to provide a mechanism for accounts to lose their privileges
      * if they are compromised (such as when a trusted device is misplaced).
      *
@@ -193,68 +186,68 @@ contract AuthorizationDatastore {
      *
      * - the caller must be `account`.
      */
-    function renounceRole( address contract_, bytes32 role_ ) external {
+    function renounceRole( address contract_, bytes32 role ) external {
         require( _contractExists( contract_ ),              "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),          "Role cannot be the origin value of OxO" );
-        require( _hasRole( contract_, role_, msg.sender ),  "Account does not contain the role" );
+        require( _roleIsValid( contract_, role ),          "Role cannot be the origin value of OxO" );
+        require( _hasRole( contract_, role, msg.sender ),  "Account does not contain the role" );
 
-        _contractRoles[contract_].roles[role_].removeRole( msg.sender );
-        emit RoleRenounced( contract_, role_, msg.sender);
+        _contractRoles[contract_].roles[role].removeRole( msg.sender );
+        emit RoleRenounced( contract_, role, msg.sender);
     }
 
     /**
      * @dev Returns `true` if `account` has been granted `role`.
      */
-    function hasRole( address contract_, bytes32 role_, address account_ ) external view returns ( bool ) {
+    function hasRole( address contract_, bytes32 role, address account ) external view returns ( bool ) {
         require( _contractExists( contract_ ),      "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),  "Role cannot be the origin value of OxO" );
-        return _hasRole( contract_, role_, account_ );
+        require( _roleIsValid( contract_, role ),  "Role cannot be the origin value of OxO" );
+        return _hasRole( contract_, role, account );
     }
 
-    function hasRestrictedSharedRole( address contract_, bytes32 role_, address account_ ) external view returns ( bool ) {
+    function hasRestrictedSharedRole( address contract_, bytes32 role, address account ) external view returns ( bool ) {
         require( _contractExists( contract_ ),      "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),  "Role cannot be the origin value of OxO" );
-        return _hasRestrictedSharedRole( contract_, role_, account_ );
+        require( _roleIsValid( contract_, role ),  "Role cannot be the origin value of OxO" );
+        return _hasRestrictedSharedRole( contract_, role, account );
     }
 
-    function isApprovedForRole( address contract_, bytes32 role_, address account_ ) external view returns ( bool ) {
+    function isApprovedForRole( address contract_, bytes32 role, address account ) external view returns ( bool ) {
         require( _contractExists( contract_ ),      "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),  "Role cannot be the origin value of OxO" );
-        return _isApprovedForRole( contract_, role_, account_ );
+        require( _roleIsValid( contract_, role ),  "Role cannot be the origin value of OxO" );
+        return _isApprovedForRole( contract_, role, account );
     }
 
-    function isRoleRestricted( address contract_, bytes32 role_, bytes32 restrictedRole_ ) external view returns ( bool ) {
+    function isRoleRestricted( address contract_, bytes32 role, bytes32 restrictedRole ) external view returns ( bool ) {
         require( _contractExists( contract_ ),      "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),  "Role cannot be the origin value of OxO" );
-        return _isRoleRestricted( contract_, role_, restrictedRole_ );
+        require( _roleIsValid( contract_, role ),  "Role cannot be the origin value of OxO" );
+        return _isRoleRestricted( contract_, role, restrictedRole );
     }
 
     /**
-     * @dev Returns the admin role that controls `role`. See {grantRole} and
+     * @dev Returns the admin role that controls `role`. See {assignRole} and
      * {revokeRole}.
      *
      * To change a role's admin, use {_setAdminRole}.
      */
-    function getAdminRole( address contract_, bytes32 role_ ) external view returns ( bytes32 ) {
+    function getAdminRole( address contract_, bytes32 role ) external view returns ( bytes32 ) {
         require( _contractExists( contract_ ),      "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),  "Role cannot be the origin value of OxO" );
-        return _contractRoles[contract_].roles[role_].admin;
+        require( _roleIsValid( contract_, role ),  "Role cannot be the origin value of OxO" );
+        return _contractRoles[contract_].roles[role].admin;
     }
 
-    function getApproverRole( address contract_, bytes32 role_ ) external view returns ( bytes32 ) {
+    function getApproverRole( address contract_, bytes32 role ) external view returns ( bytes32 ) {
         require( _contractExists( contract_ ),      "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),  "Role cannot be the origin value of OxO" );
-        return _contractRoles[contract_].roles[role_].approver;
+        require( _roleIsValid( contract_, role ),  "Role cannot be the origin value of OxO" );
+        return _contractRoles[contract_].roles[role].approver;
     }
 
     /**
      * @dev Returns the number of accounts that have `role`. Can be used
      * together with {getRoleMember} to enumerate all bearers of a role.
      */
-    function getRoleMemberCount( address contract_, bytes32 role_ ) external view returns ( uint256 ) {
+    function getRoleMemberCount( address contract_, bytes32 role ) external view returns ( uint256 ) {
         require( _contractExists( contract_ ),      "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),  "Role cannot be the origin value of OxO" );
-        return _contractRoles[contract_].roles[role_].memberCount();
+        require( _roleIsValid( contract_, role ),  "Role cannot be the origin value of OxO" );
+        return _contractRoles[contract_].roles[role].memberCount();
     }
 
     /**
@@ -269,30 +262,30 @@ contract AuthorizationDatastore {
      * https://forum.openzeppelin.com/t/iterating-over-elements-on-enumerableset-in-openzeppelin-contracts/2296[forum post]
      * for more information.
      */
-    function getRoleMember( address contract_, bytes32 role_, uint256 index_ ) external view returns ( address ) {
+    function getRoleMember( address contract_, bytes32 role, uint256 index ) external view returns ( address ) {
         require( _contractExists( contract_ ),      "Contract not in data store" );
-        require( _roleIsValid( contract_, role_ ),  "Role cannot be the origin value of OxO" );
-        return _contractRoles[contract_].roles[role_].getMember( index_ );
+        require( _roleIsValid( contract_, role ),  "Role cannot be the origin value of OxO" );
+        return _contractRoles[contract_].roles[role].getMember( index );
     }
 
-    function hasAnyOfRoles( address contract_, address account_, bytes32[] calldata roles_ ) external view returns ( bool ) {
+    function hasAnyOfRoles( address contract_, address account, bytes32[] calldata roles ) external view returns ( bool ) {
         require( _contractExists( contract_ ), "Contract not in data store" );
-        return _hasAnyOfRoles( contract_, account_, roles_ );
+        return _hasAnyOfRoles( contract_, account, roles );
     }
 
-    function _hasRole( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
-        return _contractRoles[contract_].roles[role_].isMember( account_ );
+    function _hasRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
+        return _contractRoles[contract_].roles[role].isMember( account );
     }
 
-    function _isApprovedForRole( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
-        return _contractRoles[contract_].roles[role_].approved[account_];
+    function _isApprovedForRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
+        return _contractRoles[contract_].roles[role].approved[account];
     }
 
-    function _hasAnyOfRoles( address contract_, address account_, bytes32[] calldata roles_ ) private view returns ( bool ) {
+    function _hasAnyOfRoles( address contract_, address account, bytes32[] calldata roles ) private view returns ( bool ) {
         // TODO: May need to use when adding a new restricted role to perform checks
-        for( uint256 iteration = 0; iteration <= roles_.length; iteration++ ) {
-            require( _roleIsValid( contract_, roles_[iteration] ), "Role cannot be the origin value of OxO" );
-            if( _hasRole( contract_, roles_[iteration], account_ ) ) {
+        for( uint256 iteration = 0; iteration <= roles.length; iteration++ ) {
+            require( _roleIsValid( contract_, roles[iteration] ), "Role cannot be the origin value of OxO" );
+            if( _hasRole( contract_, roles[iteration], account ) ) {
                 return true;
             }
         }
@@ -303,27 +296,27 @@ contract AuthorizationDatastore {
         return _contractRoles[contract_].root != ROLE_GUARDIAN;
     }
 
-    function _roleIsValid( address contract_, bytes32 role_ ) private view returns ( bool ) {
+    function _roleIsValid( address contract_, bytes32 role ) private view returns ( bool ) {
         // Intent is to have the admin only be 0x0 prior to creation
-        return _contractRoles[contract_].roles[role_].admin != ROLE_GUARDIAN;
+        return _contractRoles[contract_].roles[role].admin != ROLE_GUARDIAN;
     }
 
-    function _isRoot( address contract_, address account_ ) private view returns ( bool ) {
-        return _contractRoles[contract_].roles[_contractRoles[contract_].root].isMember( account_ );
+    function _isRoot( address contract_, address account ) private view returns ( bool ) {
+        return _contractRoles[contract_].roles[_contractRoles[contract_].root].isMember( account );
     }
 
-    function _isApprover( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
-        return _hasRole( contract_, _contractRoles[contract_].roles[role_].approver, account_ );
+    function _isApprover( address contract_, bytes32 role, address account ) private view returns ( bool ) {
+        return _hasRole( contract_, _contractRoles[contract_].roles[role].approver, account );
     }
 
-    function _isAdmin( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
-        return _hasRole( contract_, _contractRoles[contract_].roles[role_].admin, account_ );
+    function _isAdmin( address contract_, bytes32 role, address account ) private view returns ( bool ) {
+        return _hasRole( contract_, _contractRoles[contract_].roles[role].admin, account );
     }
 
-    function _isRoleRestricted( address contract_, bytes32 role_, bytes32 restrictedRole_ ) private view returns ( bool ) {
+    function _isRoleRestricted( address contract_, bytes32 role, bytes32 restrictedRole ) private view returns ( bool ) {
 
-        for( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role_].restrictedCount(); iteration++ ) {
-            if ( _contractRoles[contract_].roles[role_].getRestrictedRole( iteration ) == restrictedRole_ ) {
+        for( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].restrictedCount(); iteration++ ) {
+            if ( _contractRoles[contract_].roles[role].getRestrictedRole( iteration ) == restrictedRole ) {
                 return true;
             }
         }
@@ -331,11 +324,11 @@ contract AuthorizationDatastore {
         return false;
     }
 
-    function _hasRestrictedSharedRole( address contract_, bytes32 role_, address account_ ) private view returns ( bool ) {
+    function _hasRestrictedSharedRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
         // TODO: May need to use when adding a new restricted role to perform checks
 
-        for( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role_].restrictedCount(); iteration++ ) {
-            if ( _contractRoles[contract_].roles[_contractRoles[contract_].roles[role_].getRestrictedRole( iteration )].isMember( account_ ) ) {
+        for( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].restrictedCount(); iteration++ ) {
+            if ( _contractRoles[contract_].roles[_contractRoles[contract_].roles[role].getRestrictedRole( iteration )].isMember( account ) ) {
                 return true;
             }
         }
