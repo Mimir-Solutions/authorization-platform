@@ -63,9 +63,9 @@ contract AuthorizationDatastore {
     function registerContract( address contract_, bytes32 rootRole, address rootAccount ) external onlyPlatform() {        
         uint256 size;
         assembly { size:= extcodesize( contract_ ) }
-        require( size > 0,                                                          "Contract argument is not a valid contract address" );
-        require( _contractRoles[contract_].root == ROLE_GUARDIAN,                   "Contract already in data store" );
-        require( _contractRoles[contract_].roles[rootRole].admin != ROLE_GUARDIAN,  "Role cannot be the origin value of OxO" );
+        require( size > 0,                                          "Contract argument is not a valid contract address" );
+        require( _contractRoles[contract_].root == ROLE_GUARDIAN,   "Contract already in data store" );
+        require( rootRole != ROLE_GUARDIAN,                         "Role cannot be the origin value of OxO" );
 
         _contractRoles[contract_].root = rootRole;
         _contractRoles[contract_].roles[rootRole].registerRole( rootRole, rootAccount );
@@ -325,31 +325,12 @@ contract AuthorizationDatastore {
         return _contractRoles[contract_].roles[role].getMember( index );
     }
 
-    function hasAnyOfRoles( address contract_, address account, bytes32[] calldata roles ) external 
-        onlyPlatform()
-        contractExists( contract_ ) 
-        view returns ( bool )
-    {
-        return _hasAnyOfRoles( contract_, account, roles );
-    }
-
     function _hasRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
         return _contractRoles[contract_].roles[role].isMember( account );
     }
 
     function _isApprovedForRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
         return _contractRoles[contract_].roles[role].approved[account];
-    }
-
-    function _hasAnyOfRoles( address contract_, address account, bytes32[] calldata roles ) private view returns ( bool ) {
-        // TODO: May need to use when adding a new restricted role to perform checks
-        for( uint256 iteration = 0; iteration <= roles.length; iteration++ ) {
-            require( _contractRoles[contract_].roles[roles[iteration]].admin != ROLE_GUARDIAN, "Role cannot be the origin value of OxO" );
-            if( _hasRole( contract_, roles[iteration], account ) ) {
-                return true;
-            }
-        }
-        return false;
     }
 
     function _isApprover( address contract_, bytes32 role, address account ) private view returns ( bool ) {

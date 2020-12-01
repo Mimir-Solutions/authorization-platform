@@ -3,9 +3,11 @@ pragma solidity 0.7.4;
 
 // TODO: Who can call these functions e.g. registerContract
 // TODO: Event emissions
-// TODO: Assuming datastore interface, need to implement since I'm only calling a function on the supposed interface store atm
-// TODO: Wrap msg.sender
-// TODO: String to bytes32 conversion
+// TODO: Wrap "msg.sender"
+// TODO: Wrap "owner" with contract
+// TODO: Function to check if a contract has been registered
+
+import "../interfaces/IAuthorizationDatastore.sol";
 
 /**
  * Should be deletaing role lookup and validation to the AuthroizationDatastore.
@@ -14,162 +16,144 @@ pragma solidity 0.7.4;
  */
 contract AuthorizationProtocol {
 
-    // TODO: Should be an Interface 
     address private authorizationDatastore;
+    address private owner;
 
-    constructor() {}
-
-    function registerContract( address contract_, string memory rootRole, address rootAccount ) external {
-        bytes32 root = keccak256( rootRole );
-        authorizationDatastore.registerContract( contract_, root, rootAccount );
+    modifier hasDatastore() {
+        require( authorizationDatastore != address(0), "Datastore has not been set to make calls" );
+        _;
     }
 
-    function createRole( address contract_, string memory role, string memory adminRole, string memory approverRole ) external {
-        bytes32 actualRole = keccak256( role );
-        bytes32 admin = keccak256( adminRole );
-        bytes32 approver = keccak256( approverRole );
-        
-        authorizationDatastore.createRole( contract_, msg.sender, actualRole, admin, approver );
-    }
-
-    function setAdminRole( address contract_, string memory role, string memory adminRole ) external {
-        bytes32 actualRole = keccak256( role );
-        bytes32 admin = keccak256( adminRole );
-        
-        authorizationDatastore.setAdminRole( contract_, msg.sender, actualRole, admin );
-    }
-
-    function setApproverRole( address contract_, string memory role, string memory approverRole ) external {
-        bytes32 actualRole = keccak256( role);
-        bytes32 approver = keccak256( approverRole );
-        
-        authorizationDatastore.setApproverRole( contract_, msg.sender, actualRole, approver );
-    }
-
-    function addRestrictedRole( address contract_, string memory role, string memory restrictedRole ) external {
-        bytes32 actualRole = keccak256( role );
-        bytes32 restricted = keccak256( restrictedRole );
-        
-        authorizationDatastore.addRestrictedRole( contract_, msg.sender, actualRole, restricted );
+    constructor() public {
+        owner = msg.sender;
     }
     
-    function removeRestrictedRole( address contract_, string memory role, string memory restrictedRole ) external {
-        bytes32 actualRole = keccak256( role );
-        bytes32 restricted = keccak256( restrictedRole );
+    function setDatastoreAddress( address authorizationDatastore_ ) external {
+        require( owner == msg.sender, "Owner only" );
+        authorizationDatastore = authorizationDatastore_;
+    }
+
+    function registerContract( address contract_, string memory rootRole, address rootAccount ) external hasDatastore() {
+        bytes32 root = keccak256( abi.encode( rootRole ) );
+        IAuthorizationDatastore( authorizationDatastore ).registerContract( contract_, root, rootAccount );
+    }
+
+    function createRole( address contract_, string memory role, string memory adminRole, string memory approverRole ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        bytes32 admin = keccak256( abi.encode( adminRole ) );
+        bytes32 approver = keccak256( abi.encode( approverRole ) );
         
-        authorizationDatastore.removeRestrictedRole( contract_, msg.sender, actualRole, restricted );
+        IAuthorizationDatastore( authorizationDatastore ).createRole( contract_, msg.sender, actualRole, admin, approver );
     }
 
-    function assignRole( address contract_, string memory role, address account ) external {
-        bytes32 actualRole = keccak256( role );
-        authorizationDatastore.assignRole( contract_, actualRole, account, msg.sender );
+    function setAdminRole( address contract_, string memory role, string memory adminRole ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        bytes32 admin = keccak256( abi.encode( adminRole ) );
+        
+        IAuthorizationDatastore( authorizationDatastore ).setAdminRole( contract_, msg.sender, actualRole, admin );
     }
 
-    function removeRole( address contract_, string memory role, address account ) external {
-        bytes32 actualRole = keccak256( role );
-        authorizationDatastore.removeRole( contract_, actualRole, account, msg.sender );
+    function setApproverRole( address contract_, string memory role, string memory approverRole ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        bytes32 approver = keccak256( abi.encode( approverRole ) );
+        
+        IAuthorizationDatastore( authorizationDatastore ).setApproverRole( contract_, msg.sender, actualRole, approver );
     }
 
-    function approveForRole( address contract_, string memory role, address account ) external {
-        bytes32 actualRole = keccak256( role );
-        authorizationDatastore.approveForRole( contract_, actualRole, account, msg.sender );
+    function addRestrictedRole( address contract_, string memory role, string memory restrictedRole ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        bytes32 restricted = keccak256( abi.encode( restrictedRole ) );
+        
+        IAuthorizationDatastore( authorizationDatastore ).addRestrictedRole( contract_, msg.sender, actualRole, restricted );
     }
     
-    function revokeApproval( address contract_, string memory role, address account ) external {
-        bytes32 actualRole = keccak256( role );
-        authorizationDatastore.revokeApproval( contract_, actualRole, account, msg.sender );
+    function removeRestrictedRole( address contract_, string memory role, string memory restrictedRole ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        bytes32 restricted = keccak256( abi.encode( restrictedRole ) );
+        
+        IAuthorizationDatastore( authorizationDatastore ).removeRestrictedRole( contract_, msg.sender, actualRole, restricted );
     }
 
-    function renounceRole( address contract_, string memory role ) external {
-        // TODO: This can currently be called directly from the store... but should it?
-        bytes32 actualRole = keccak256( role );
-        authorizationDatastore.renounceRole( contract_, actualRole );
-    }
-    
-    function hasRole( address contract_, string memory role, address account ) external view returns ( bool ) {
-        // TODO: This can currently be called directly from the store... but should it?
-        bytes32 actualRole = keccak256( role );
-        
-        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.hasRole( contract_, actualRole, account );
+    function assignRole( address contract_, string memory role, address account ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        IAuthorizationDatastore( authorizationDatastore ).assignRole( contract_, actualRole, account, msg.sender );
     }
 
-    function hasRestrictedSharedRole( address contract_, string memory role, address account ) external view returns ( bool ) {
-        // TODO: This can currently be called directly from the store... but should it?
-        
-        bytes32 actualRole = keccak256( role );
-        
-        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.hasRestrictedSharedRole( contract_, actualRole, account );
+    function removeRole( address contract_, string memory role, address account ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        IAuthorizationDatastore( authorizationDatastore ).removeRole( contract_, actualRole, account, msg.sender );
     }
 
-    function isApprovedForRole( address contract_, string memory role, address account ) external view returns ( bool ) {
-        // TODO: This can currently be called directly from the store... but should it?
-        
-        bytes32 actualRole = keccak256( role );
-        
-        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.isApprovedForRole( contract_, actualRole, account );
-    }
-
-    function isRoleRestricted( address contract_, string memory role, string memory restrictedRole ) external view returns ( bool ) {
-        // TODO: This can currently be called directly from the store... but should it?
-
-        bytes32 actualRole = keccak256( role );
-        bytes32 restricted = keccak256( restrictedRole );
-
-        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.isRoleRestricted( contract_, actualRole, restricted );
-    }
-
-    function getAdminRole( address contract_, string memory role ) external view returns ( bytes32 ) {
-        // TODO: This can currently be called directly from the store... but should it?
-
-        bytes32 actualRole = keccak256( role );
-        
-        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.getAdminRole( contract_, actualRole );
+    function approveForRole( address contract_, string memory role, address account ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        IAuthorizationDatastore( authorizationDatastore ).approveForRole( contract_, actualRole, account, msg.sender );
     }
     
-    function getApproverRole( address contract_, string memory role ) external view returns ( bytes32 ) {
-        // TODO: This can currently be called directly from the store... but should it?
-
-        bytes32 actualRole = keccak256( role );
-        
-        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.getApproverRole( contract_, actualRole );
+    function revokeApproval( address contract_, string memory role, address account ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        IAuthorizationDatastore( authorizationDatastore ).revokeApproval( contract_, actualRole, account, msg.sender );
     }
 
-    function getRoleMemberCount( address contract_, string memory role ) external view returns ( uint256 ) {
-        // TODO: This can currently be called directly from the store... but should it?
-
-        bytes32 actualRole = keccak256( role );
+    function renounceRole( address contract_, string memory role ) external hasDatastore() {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        IAuthorizationDatastore( authorizationDatastore ).renounceRole( contract_, actualRole );
+    }
+    
+    function hasRole( address contract_, string memory role, address account ) external hasDatastore() view returns ( bool ) {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
         
         // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.getRoleMemberCount( contract_, actualRole );
+        return IAuthorizationDatastore( authorizationDatastore ).hasRole( contract_, actualRole, account );
     }
 
-    function getRoleMember( address contract_, string memory role, uint256 index ) external view returns ( address ) {
-        // TODO: This can currently be called directly from the store... but should it?
-
-        bytes32 actualRole = keccak256( role );
+    function hasRestrictedSharedRole( address contract_, string memory role, address account ) external hasDatastore() view returns ( bool ) {        
+        bytes32 actualRole = keccak256( abi.encode( role ) );
         
         // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.getRoleMember( contract_, actualRole, index );
+        return IAuthorizationDatastore( authorizationDatastore ).hasRestrictedSharedRole( contract_, actualRole, account );
     }
 
-    function hasAnyOfRoles( address contract_, address account, string[] calldata roles ) external view returns ( bool ) {
-        // TODO: This can currently be called directly from the store... but should it?
-
-        bytes32[] memory actualRoles;
-        
-        for ( uint256 iteration = 0; iteration <= roles.length; iteration++ ) {
-            bytes32 role = keccak256( roles[iteration] );
-            actualRoles.push( role );
-        }
+    function isApprovedForRole( address contract_, string memory role, address account ) external hasDatastore() view returns ( bool ) {        
+        bytes32 actualRole = keccak256( abi.encode( role ) );
         
         // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
-        return authorizationDatastore.hasAnyOfRoles( contract_, account, actualRoles );
+        return IAuthorizationDatastore( authorizationDatastore ).isApprovedForRole( contract_, actualRole, account );
+    }
+
+    function isRoleRestricted( address contract_, string memory role, string memory restrictedRole ) external hasDatastore() view returns ( bool ) {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        bytes32 restricted = keccak256( abi.encode( restrictedRole ) );
+
+        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
+        return IAuthorizationDatastore( authorizationDatastore ).isRoleRestricted( contract_, actualRole, restricted );
+    }
+
+    function getAdminRole( address contract_, string memory role ) external hasDatastore() view returns ( bytes32 ) {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        
+        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
+        return IAuthorizationDatastore( authorizationDatastore ).getAdminRole( contract_, actualRole );
+    }
+    
+    function getApproverRole( address contract_, string memory role ) external hasDatastore() view returns ( bytes32 ) {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        
+        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
+        return IAuthorizationDatastore( authorizationDatastore ).getApproverRole( contract_, actualRole );
+    }
+
+    function getRoleMemberCount( address contract_, string memory role ) external hasDatastore() view returns ( uint256 ) {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        
+        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
+        return IAuthorizationDatastore( authorizationDatastore ).getRoleMemberCount( contract_, actualRole );
+    }
+
+    function getRoleMember( address contract_, string memory role, uint256 index ) external hasDatastore() view returns ( address ) {
+        bytes32 actualRole = keccak256( abi.encode( role ) );
+        
+        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
+        return IAuthorizationDatastore( authorizationDatastore ).getRoleMember( contract_, actualRole, index );
     }
 
 }
