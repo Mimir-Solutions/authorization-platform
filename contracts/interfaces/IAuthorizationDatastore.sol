@@ -41,4 +41,9 @@ interface IAuthorizationDatastore {
 
     function getRoleMember( address contract_, bytes32 role, uint256 index ) external view returns ( address );
 
+    function isRoleCreated( address contract_, bytes32 role ) external view returns ( bool );
+
+    function isContractRegistered( address contract_ ) external view returns ( bool );
+
 }
+

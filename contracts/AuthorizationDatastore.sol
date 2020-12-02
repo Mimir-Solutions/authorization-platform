@@ -10,19 +10,18 @@ import "../dependencies/libraires/security/structs/RoleData.sol";
 
  /**
   * Conract to store the role authorization data for the rest of the platform.
-  * Should be expecting calls from the AuthorizationPlatform and return bools or bytes32 for evaluation results.
+  * Should be expecting calls from the authorizationProtocol and return bools or bytes32 for evaluation results.
   */
 contract AuthorizationDatastore {
 
     using RoleData for RoleData.Role;
     using RoleData for RoleData.ContractRoles;
 
-    address private _authorizationPlatform;
+    address private _authorizationProtocol;
     bytes32 private constant ROLE_GUARDIAN = bytes32(0x0);
 
     modifier onlyPlatform() {
-        // TODO: Context is now in a different project
-        require( msg.sender == _authorizationPlatform );
+        require( msg.sender == _authorizationProtocol );
         _;
     }
 
@@ -36,9 +35,13 @@ contract AuthorizationDatastore {
         _;
     }
 
+    modifier roleExists( address contract_, bytes32 role ) {
+        require( _contractRoles[contract_].roles[role].admin != ROLE_GUARDIAN, "Role does not exist" );
+        _;
+    }
+
     modifier validRole( address contract_, bytes32 role ) {
-        // Intent is to have the admin only be 0x0 prior to creation
-        require( _contractRoles[contract_].roles[role].admin != ROLE_GUARDIAN, "Role cannot be the origin value of OxO" );
+        require( role != ROLE_GUARDIAN, "Role cannot be the origin value of OxO" );
         _;
     }
 
@@ -56,8 +59,8 @@ contract AuthorizationDatastore {
     event RoleApproved( address indexed contract_, bytes32 indexed role, address account, address indexed sender );
     event RoleApprovalRevoked( address indexed contract_, bytes32 indexed role, address account, address indexed sender );
 
-    constructor( address authorizationPlatform ) public {
-        _authorizationPlatform = authorizationPlatform;
+    constructor( address authorizationProtocol ) public {
+        _authorizationProtocol = authorizationProtocol;
     }
 
     function registerContract( address contract_, bytes32 rootRole, address rootAccount ) external onlyPlatform() {        
@@ -77,10 +80,13 @@ contract AuthorizationDatastore {
         onlyPlatform() 
         contractExists( contract_ )
         isRoot( contract_, submitter )
-        validRole( contract_, role )
-        validRole( contract_, adminRole )
-        validRole( contract_, approverRole )
     {
+        require( _contractRoles[contract_].roles[role].admin == ROLE_GUARDIAN, "Role signature already exists" );
+        
+        // Compiler stack overflow if using TWO modifiers to check roles therefore instead of 1 modifier perform the checks here
+        require( adminRole != ROLE_GUARDIAN, "Role cannot be the origin value of OxO" );
+        require( approverRole != ROLE_GUARDIAN, "Role cannot be the origin value of OxO" );
+        
         _contractRoles[contract_].roles[role].createRole( adminRole, approverRole );
         emit CreatedRole( contract_, submitter, role );
     }
@@ -89,7 +95,7 @@ contract AuthorizationDatastore {
         onlyPlatform() 
         contractExists( contract_ )
         isRoot( contract_, submitter )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         validRole( contract_, adminRole )
     {
         _contractRoles[contract_].roles[role].admin = adminRole;
@@ -100,7 +106,7 @@ contract AuthorizationDatastore {
         onlyPlatform() 
         contractExists( contract_ )
         isRoot( contract_, submitter )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         validRole( contract_, approverRole )
     {
         _contractRoles[contract_].roles[role].approver = approverRole;
@@ -111,7 +117,7 @@ contract AuthorizationDatastore {
         onlyPlatform() 
         contractExists( contract_ )
         isRoot( contract_, submitter )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         validRole( contract_, restrictedRole )
     {
         // TODO: What if you add a new role into this set and someone else has it? How do you check and undo their perms or 
@@ -124,7 +130,7 @@ contract AuthorizationDatastore {
         onlyPlatform()
         contractExists( contract_ )
         isRoot( contract_, submitter )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         validRole( contract_, restrictedRole )
     {
         _contractRoles[contract_].roles[role].removeRestrictedRole( restrictedRole );
@@ -144,7 +150,7 @@ contract AuthorizationDatastore {
     function assignRole( address contract_, bytes32 role, address account, address sender ) external 
         onlyPlatform() 
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
     {
         require( _isAdmin( contract_, role, sender ),                     "Submitter has insufficient permissions" );
         require( !_hasRestrictedSharedRole( contract_, role, account ),   "Account contains a restricted role" );
@@ -166,7 +172,7 @@ contract AuthorizationDatastore {
     function removeRole( address contract_, bytes32 role, address account, address sender ) external 
         onlyPlatform() 
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
     {
         require( _isAdmin( contract_, role, sender ),  "Admin only" ); // TODO: What about root?
         require( _hasRole( contract_, role, account ), "Account does not contain the role" );
@@ -178,7 +184,7 @@ contract AuthorizationDatastore {
     function approveForRole( address contract_, bytes32 role, address account, address sender ) external 
         onlyPlatform()
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
     {
         require( _isApprover( contract_, role, sender ),  "Sender does not contain the approver role" );
 
@@ -189,7 +195,7 @@ contract AuthorizationDatastore {
     function revokeApproval( address contract_, bytes32 role, address account, address sender ) external 
         onlyPlatform()
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
     {
         require( _isApprover( contract_, role, sender ),  "Sender does not contain the approver role" );
 
@@ -214,7 +220,7 @@ contract AuthorizationDatastore {
     function renounceRole( address contract_, bytes32 role ) external 
         onlyPlatform() 
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
     {
         require( _hasRole( contract_, role, msg.sender ),  "Account does not contain the role" );
 
@@ -228,7 +234,7 @@ contract AuthorizationDatastore {
     function hasRole( address contract_, bytes32 role, address account ) external 
         onlyPlatform()
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         view returns ( bool ) 
     {
         return _hasRole( contract_, role, account );
@@ -237,7 +243,7 @@ contract AuthorizationDatastore {
     function hasRestrictedSharedRole( address contract_, bytes32 role, address account ) external 
         onlyPlatform()
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         view returns ( bool )
     {
         return _hasRestrictedSharedRole( contract_, role, account );
@@ -246,7 +252,7 @@ contract AuthorizationDatastore {
     function isApprovedForRole( address contract_, bytes32 role, address account ) external 
         onlyPlatform()
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         view returns ( bool )
     {
         return _isApprovedForRole( contract_, role, account );
@@ -255,7 +261,7 @@ contract AuthorizationDatastore {
     function isRoleRestricted( address contract_, bytes32 role, bytes32 restrictedRole ) external 
         onlyPlatform() 
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         view returns ( bool )
     {
         for( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].restrictedCount(); iteration++ ) {
@@ -276,7 +282,7 @@ contract AuthorizationDatastore {
     function getAdminRole( address contract_, bytes32 role ) external 
         onlyPlatform() 
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         view returns ( bytes32 ) 
     {
         return _contractRoles[contract_].roles[role].admin;
@@ -285,7 +291,7 @@ contract AuthorizationDatastore {
     function getApproverRole( address contract_, bytes32 role ) external 
         onlyPlatform() 
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         view returns ( bytes32 ) 
     {
         return _contractRoles[contract_].roles[role].approver;
@@ -298,7 +304,7 @@ contract AuthorizationDatastore {
     function getRoleMemberCount( address contract_, bytes32 role ) external 
         onlyPlatform()
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         view returns ( uint256 ) 
     {
         return _contractRoles[contract_].roles[role].memberCount();
@@ -319,10 +325,25 @@ contract AuthorizationDatastore {
     function getRoleMember( address contract_, bytes32 role, uint256 index ) external 
         onlyPlatform()
         contractExists( contract_ )
-        validRole( contract_, role )
+        roleExists( contract_, role )
         view returns ( address )
     {
         return _contractRoles[contract_].roles[role].getMember( index );
+    }
+    
+    function isRoleCreated( address contract_, bytes32 role ) external
+        onlyPlatform()
+        contractExists( contract_ )
+        view returns ( bool )
+    {
+        return _contractRoles[contract_].roles[role].admin != ROLE_GUARDIAN;
+    }
+    
+    function isContractRegistered( address contract_ ) external
+        onlyPlatform()
+        view returns ( bool )
+    {
+        return _contractRoles[contract_].root != ROLE_GUARDIAN;
     }
 
     function _hasRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
