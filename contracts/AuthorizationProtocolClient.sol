@@ -1,17 +1,17 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity 0.7.4;
+// // SPDX-License-Identifier: AGPL-3.0-or-later
+// pragma solidity 0.7.4;
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
-abstract contract AuthorizationProtocolClient {
+// abstract contract AuthorizationProtocolClient {
 
-    constructor() {}
+//     constructor() {}
 
-    function _registerContract() internal {}
+//     function _registerContract() internal {}
 
-    function _registerRoles() internal {}
+//     function _registerRoles() internal {}
 
-    function _hasRole() internal {}
+//     function _hasRole() internal {}
 
-    function _hasAnyOfRoles() {}
-}
+//     function _hasAnyOfRoles() {}
+// }

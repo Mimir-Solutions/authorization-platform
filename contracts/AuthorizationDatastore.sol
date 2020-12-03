@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity 0.7.4;
+// // SPDX-License-Identifier: AGPL-3.0-or-later
+// pragma solidity 0.7.4;
 
 // TODO: now that projects are split what do we do about imports?
 import "../dependencies/libraires/security/structs/RoleData.sol";
@@ -14,8 +14,8 @@ import "../dependencies/libraires/security/structs/RoleData.sol";
   */
 contract AuthorizationDatastore {
 
-    using RoleData for RoleData.Role;
-    using RoleData for RoleData.ContractRoles;
+//     using RoleData for RoleData.Role;
+//     using RoleData for RoleData.ContractRoles;
 
     address private _authorizationProtocol;
     bytes32 private constant ROLE_GUARDIAN = bytes32(0x0);
@@ -45,7 +45,7 @@ contract AuthorizationDatastore {
         _;
     }
 
-    mapping( address => RoleData.ContractRoles ) private _contractRoles;
+//     mapping( address => RoleData.ContractRoles ) private _contractRoles;
 
     event ContractRegistered( address indexed _contract, bytes32 indexed rootRole, address indexed rootAccount );
     event CreatedRole( address indexed contract_, address indexed creator, bytes32 role );
@@ -371,6 +371,6 @@ contract AuthorizationDatastore {
             }
         }
 
-        return false;
-    }
-}
+//         return false;
+//     }
+// }
