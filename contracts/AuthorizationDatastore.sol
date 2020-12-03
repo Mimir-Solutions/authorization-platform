@@ -1,5 +1,5 @@
-// // SPDX-License-Identifier: AGPL-3.0-or-later
-// pragma solidity 0.7.4;
+// SPDX-License-Identifier: AGPL-3.0-or-later
+pragma solidity 0.7.4;
 
 // TODO: now that projects are split what do we do about imports?
 import "../dependencies/libraires/security/structs/RoleData.sol";
@@ -14,8 +14,8 @@ import "../dependencies/libraires/security/structs/RoleData.sol";
   */
 contract AuthorizationDatastore {
 
-//     using RoleData for RoleData.Role;
-//     using RoleData for RoleData.ContractRoles;
+    using RoleData for RoleData.Role;
+    using RoleData for RoleData.ContractRoles;
 
     address private _authorizationProtocol;
     bytes32 private constant ROLE_GUARDIAN = bytes32(0x0);
@@ -45,7 +45,7 @@ contract AuthorizationDatastore {
         _;
     }
 
-//     mapping( address => RoleData.ContractRoles ) private _contractRoles;
+    mapping( address => RoleData.ContractRoles ) private _contractRoles;
 
     event ContractRegistered( address indexed _contract, bytes32 indexed rootRole, address indexed rootAccount );
     event CreatedRole( address indexed contract_, address indexed creator, bytes32 role );
@@ -152,9 +152,9 @@ contract AuthorizationDatastore {
         contractExists( contract_ )
         roleExists( contract_, role )
     {
-        require( _isAdmin( contract_, role, sender ),                     "Submitter has insufficient permissions" );
-        require( !_hasRestrictedSharedRole( contract_, role, account ),   "Account contains a restricted role" );
-        require( _isApprovedForRole( contract_, role, account ),          "Account is not approved for role." );
+        require( _isAdmin( contract_, role, sender ),               "Submitter has insufficient permissions" );
+        require( !_hasRestrictedRole( contract_, role, account ),   "Account contains a restricted role" );
+        require( _isApprovedForRole( contract_, role, account ),    "Account is not approved for role." );
                 
         _contractRoles[contract_].roles[role].assignRole( account );
         emit RoleAssigned( contract_, role, account, sender );
@@ -240,13 +240,13 @@ contract AuthorizationDatastore {
         return _hasRole( contract_, role, account );
     }
 
-    function hasRestrictedSharedRole( address contract_, bytes32 role, address account ) external 
+    function hasRestrictedRole( address contract_, bytes32 role, address account ) external 
         onlyPlatform()
         contractExists( contract_ )
         roleExists( contract_, role )
         view returns ( bool )
     {
-        return _hasRestrictedSharedRole( contract_, role, account );
+        return _hasRestrictedRole( contract_, role, account );
     }
 
     function isApprovedForRole( address contract_, bytes32 role, address account ) external 
@@ -362,7 +362,7 @@ contract AuthorizationDatastore {
         return _hasRole( contract_, _contractRoles[contract_].roles[role].admin, account );
     }
 
-    function _hasRestrictedSharedRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
+    function _hasRestrictedRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
         // TODO: May need to use when adding a new restricted role to perform checks
 
         for( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].restrictedCount(); iteration++ ) {
@@ -371,6 +371,6 @@ contract AuthorizationDatastore {
             }
         }
 
-//         return false;
-//     }
-// }
+        return false;
+    }
+}

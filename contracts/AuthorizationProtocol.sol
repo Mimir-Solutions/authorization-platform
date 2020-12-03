@@ -9,7 +9,7 @@ pragma solidity 0.7.4;
 // TODO: Depending on implementation of RoleData role deletion may be possible (reasonable to implement)
 // TODO: Consider how to actually add roles
 
-import "../interfaces/IAuthorizationDatastore.sol";
+import "..interfaces//IAuthorizationDatastore.sol";
 
 /**
  * Should be deletaing role lookup and validation to the AuthroizationDatastore.
@@ -103,14 +103,12 @@ contract AuthorizationProtocol {
     
     function hasRole( address contract_, string memory role, address account ) external hasDatastore() view returns ( bool ) {
         bytes32 actualRole = keccak256( abi.encode( role ) );
-        
-        // TODO: Depends on how it is written but I may be able to directly return the value or I must decode
         return IAuthorizationDatastore( authorizationDatastore ).hasRole( contract_, actualRole, account );
     }
 
-    function hasRestrictedSharedRole( address contract_, string memory role, address account ) external hasDatastore() view returns ( bool ) {        
+    function hasRestrictedRole( address contract_, string memory role, address account ) external hasDatastore() view returns ( bool ) {        
         bytes32 actualRole = keccak256( abi.encode( role ) );
-        return IAuthorizationDatastore( authorizationDatastore ).hasRestrictedSharedRole( contract_, actualRole, account );
+        return IAuthorizationDatastore( authorizationDatastore ).hasRestrictedRole( contract_, actualRole, account );
     }
 
     function isApprovedForRole( address contract_, string memory role, address account ) external hasDatastore() view returns ( bool ) {        
