@@ -2,7 +2,7 @@
 pragma solidity 0.7.4;
 
 // TODO: now that projects are split what do we do about imports?
-import "../dependencies/libraires/security/structs/RoleData.sol";
+import "../dependencies/libraires/security/structs/RoleManager.sol";
 
 // TODO: how does approval work? You approve and then they are automatically added to the members or there is another step that someone else must perform?
 //       ... since the approval can be revoked. If the former then who double checks it and how are they informed of this?
@@ -14,8 +14,8 @@ import "../dependencies/libraires/security/structs/RoleData.sol";
   */
 contract AuthorizationDatastore {
 
-    using RoleData for RoleData.Role;
-    using RoleData for RoleData.ContractRoles;
+    using RoleManager for RoleManager.Role;
+    using RoleManager for RoleManager.ContractRoles;
 
     address private _authorizationProtocol;
     bytes32 private constant ROLE_GUARDIAN = bytes32(0x0);
@@ -45,7 +45,7 @@ contract AuthorizationDatastore {
         _;
     }
 
-    mapping( address => RoleData.ContractRoles ) private _contractRoles;
+    mapping( address => RoleManager.ContractRoles ) private _contractRoles;
 
     event ContractRegistered( address indexed _contract, bytes32 indexed rootRole, address indexed rootAccount );
     event CreatedRole( address indexed contract_, address indexed creator, bytes32 role );
@@ -71,6 +71,7 @@ contract AuthorizationDatastore {
         require( rootRole != ROLE_GUARDIAN,                         "Role cannot be the origin value of OxO" );
 
         _contractRoles[contract_].root = rootRole;
+        _contractRoles[contract_].accounts[rootAccount].roles[rootRole] = true;
         _contractRoles[contract_].roles[rootRole].registerRole( rootRole, rootAccount );
 
         emit ContractRegistered( contract_, rootRole, rootAccount );
@@ -118,10 +119,18 @@ contract AuthorizationDatastore {
         contractExists( contract_ )
         isRoot( contract_, submitter )
         roleExists( contract_, role )
-        validRole( contract_, restrictedRole )
     {
-        // TODO: What if you add a new role into this set and someone else has it? How do you check and undo their perms or 
-        // just do not add it untill that is sorted?
+        // Compiler stack overflow again...
+        require( role != ROLE_GUARDIAN, "Role cannot be the origin value of OxO" );
+        
+        // ... cannot avoid loop, fml.
+        for ( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].memberCount(); iteration++ ) {
+            address member = _contractRoles[contract_].roles[role].getMember( iteration );
+            if ( _contractRoles[contract_].accounts[member].roles[role] ) {
+                revert( string( abi.encodePacked( "Cannot add restricted role to role because a member already has the restricted role: " , member ) ) );
+            }
+        }
+
         _contractRoles[contract_].roles[role].addRestrictedRole( restrictedRole );
         emit RestrictedRoleAdded( contract_, submitter, role, restrictedRole );
     }
@@ -155,8 +164,9 @@ contract AuthorizationDatastore {
         require( _isAdmin( contract_, role, sender ),               "Submitter has insufficient permissions" );
         require( !_hasRestrictedRole( contract_, role, account ),   "Account contains a restricted role" );
         require( _isApprovedForRole( contract_, role, account ),    "Account is not approved for role." );
-                
+
         _contractRoles[contract_].roles[role].assignRole( account );
+        _contractRoles[contract_].accounts[account].roles[role] = true;
         emit RoleAssigned( contract_, role, account, sender );
     }
 
@@ -178,6 +188,7 @@ contract AuthorizationDatastore {
         require( _hasRole( contract_, role, account ), "Account does not contain the role" );
 
         _contractRoles[contract_].roles[role].removeRole( account );
+        _contractRoles[contract_].accounts[account].roles[role] = false;
         emit RoleRemoved( contract_, role, account, sender );
     }
 
@@ -225,6 +236,7 @@ contract AuthorizationDatastore {
         require( _hasRole( contract_, role, msg.sender ),  "Account does not contain the role" );
 
         _contractRoles[contract_].roles[role].removeRole( msg.sender );
+        _contractRoles[contract_].accounts[msg.sender].roles[role] = true;
         emit RoleRenounced( contract_, role, msg.sender);
     }
 
@@ -264,7 +276,8 @@ contract AuthorizationDatastore {
         roleExists( contract_, role )
         view returns ( bool )
     {
-        for( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].restrictedCount(); iteration++ ) {
+        // TODO: This is trash. A mapping is best.
+        for ( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].restrictedCount(); iteration++ ) {
             if ( _contractRoles[contract_].roles[role].getRestrictedRole( iteration ) == restrictedRole ) {
                 return true;
             }
@@ -363,14 +376,16 @@ contract AuthorizationDatastore {
     }
 
     function _hasRestrictedRole( address contract_, bytes32 role, address account ) private view returns ( bool ) {
-        // TODO: May need to use when adding a new restricted role to perform checks
-
-        for( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].restrictedCount(); iteration++ ) {
+        // TODO: Can I force this behavior? If role is not the whole struct role and instead restricted role within it then yes
+        // return _contractRoles[contract_].accounts[account].roles[role];
+        
+        for ( uint256 iteration = 0; iteration < _contractRoles[contract_].roles[role].restrictedCount(); iteration++ ) {
             if ( _contractRoles[contract_].roles[_contractRoles[contract_].roles[role].getRestrictedRole( iteration )].isMember( account ) ) {
                 return true;
             }
         }
-
+        
         return false;
+        
     }
 }
