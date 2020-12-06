@@ -26,7 +26,7 @@ contract AuthorizationProtocol {
         _;
     }
 
-    constructor() public {
+    constructor() {
         owner = msg.sender;
     }
     
