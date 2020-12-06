@@ -9,14 +9,14 @@ pragma solidity 0.7.4;
 // TODO: Depending on implementation of RoleData role deletion may be possible (reasonable to implement)
 // TODO: Consider how to actually add roles
 
-import "../interfaces/IAuthorizationDatastore.sol";
+import "./interfaces/IAuthorizationDatastore.sol";
 
 /**
  * Should be deletaing role lookup and validation to the AuthroizationDatastore.
  * Acts as interface for other contracts to validate authorizations.
  * Should be an extensiion or reimplementation of TomeLockController.
  */
-contract AuthorizationProtocol {
+contract AuthorizationPlatform {
 
     address private _authorizationDatastore;
     address private _owner;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.7.4;
 
-interface IAuthorizationProtocol {
+interface IAuthorizationPlatform {
 
     function registerContract( address contract_, string memory rootRole, address rootAccount ) external;
     

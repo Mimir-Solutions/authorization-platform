@@ -2,7 +2,7 @@
 pragma solidity 0.7.4;
 
 // TODO: now that projects are split what do we do about imports?
-import "../dependencies/libraires/security/structs/RoleManager.sol";
+import "./libraries/security/RoleManager.sol";
 
 // TODO: how does approval work? You approve and then they are automatically added to the members or there is another step that someone else must perform?
 //       ... since the approval can be revoked. If the former then who double checks it and how are they informed of this?
