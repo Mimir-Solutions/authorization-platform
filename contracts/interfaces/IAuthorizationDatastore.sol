@@ -27,7 +27,7 @@ interface IAuthorizationDatastore {
 
     function hasRole( address contract_, bytes32 role, address account ) external view returns ( bool );
 
-    function hasRestrictedSharedRole( address contract_, bytes32 role, address account ) external view returns ( bool );
+    function hasRestrictedRole( address contract_, bytes32 role, address account ) external view returns ( bool );
 
     function isApprovedForRole( address contract_, bytes32 role, address account ) external view returns ( bool );
 
