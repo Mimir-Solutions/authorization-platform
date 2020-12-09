@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity 0.7.4;
 
-import "../../dependencies/holyzeppelin/contracts/datatypes/collections/AddressSet.sol";
-import "../../dependencies/holyzeppelin/contracts/datatypes/collections/Bytes32Set.sol";
+import "../../dependencies/holyzeppelin/contracts/datatypes/collections/EnumerableSet.sol";
 
 // TODO: Better description
 // TODO: RoleData - roleApproval bool should be a struct containing data about who approved etc. for more information .
@@ -12,19 +11,25 @@ import "../../dependencies/holyzeppelin/contracts/datatypes/collections/Bytes32S
  */
 library RoleData {
 
-    using AddressSet for AddressSet.AddressSet;
-    using Bytes32Set for Bytes32Set.Bytes32Set;
+    using EnumerableSet for EnumerableSet.Set;
+    using EnumerableSet for EnumerableSet.Set;
 
     struct Role {
         bytes32 admin;
         bytes32 approver;
-        AddressSet.AddressSet members;
-        Bytes32Set.Bytes32Set restrictedSharedRoles;    // TODO: Better name
+        EnumerableSet.AddressSet members;
+        EnumerableSet.Bytes32Set restrictedRoles;
         mapping(address => bool) approved;
+    }
+    
+    // TODO: What else can I redesign?
+    struct Account {
+        mapping(bytes32 => bool) roles;
     }
 
     struct ContractRoles {
         bytes32 root;
+        mapping(address => Account) accounts;
         mapping(bytes32 => Role) roles;
     }
 

@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // pragma solidity 0.7.4;
 
-// import "../../dataTypes/collections/AddressSet.sol";
-// import "../../dataTypes/collections/Bytes32Set.sol";
+import "../../dependencies/holyzeppelin/contracts/datatypes/collections/EnumerableSet.sol";
 
 // TODO: Documentation
 // TODO: RoleManager - approved bool should be a struct containing data about who approved etc. for more information.
 // TODO: Look into Address/Bytes32 sets -> replace with new structure if unnecessary. Fuck loops if we can use mappings and keep a counter
 library RoleManager {
 
-    using AddressSet for AddressSet.Set;
-    using Bytes32Set for Bytes32Set.Set;
+    using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     struct Role {
         bytes32 admin;
         bytes32 approver;
-        AddressSet.Set members;
-        Bytes32Set.Set restrictedRoles;
+        EnumerableSet.AddressSet members;
+        EnumerableSet.Bytes32Set restrictedRoles;
         mapping(address => bool) approved;
     }
     
