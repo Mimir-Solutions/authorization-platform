@@ -27,7 +27,7 @@ contract AuthorizationPlatform {
     }
 
     constructor() {
-        owner = msg.sender;
+        _owner = msg.sender;
     }
     
     function setDatastoreAddress( address authorizationDatastore_ ) external {
