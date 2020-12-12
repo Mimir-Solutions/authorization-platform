@@ -59,7 +59,7 @@ contract AuthorizationDatastore {
     event RoleApproved( address indexed contract_, bytes32 indexed role, address account, address indexed sender );
     event RoleApprovalRevoked( address indexed contract_, bytes32 indexed role, address account, address indexed sender );
 
-    constructor( address authorizationProtocol ) public {
+    constructor( address authorizationProtocol ) {
         _authorizationProtocol = authorizationProtocol;
     }
 
