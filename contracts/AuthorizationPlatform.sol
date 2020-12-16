@@ -8,6 +8,7 @@ pragma solidity 0.7.5;
 // TODO: string memory to string calldata?
 // TODO: Depending on implementation of RoleData role deletion may be possible (reasonable to implement)
 // TODO: Consider how to actually add roles
+// TODO: Needs to implement ERC1820Enhanced - ehanced to include per fuction IDs
 
 import "./interfaces/IAuthorizationDatastore.sol";
 
