@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity 0.8.0;
 
+import "hardhat/console.sol";
+
 // TODO: Who can call these functions e.g. registerContract
 // TODO: Event emissions
 // TODO: Wrap "msg.sender"
