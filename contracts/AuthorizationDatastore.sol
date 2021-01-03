@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity 0.8.0;
+pragma solidity 0.7.5;
 
 // TODO: now that projects are split what do we do about imports?
 import "./libraries/security/RoleManager.sol";
